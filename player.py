@@ -15,23 +15,28 @@ class Player:
         self.rules = rules.lower()
         self.board_size = board_size
 
-        # Select board logic based on rules
+        # --- 1. GAME & MODEL SELECTION ---
+        # Select the appropriate board logic and model weights based on the rules.
         if "gomoku" in self.rules:
             self.board_class = GBoard
+            model_filename = "alphazero_policy_v_best.pth"  # Model trained for Gomoku
         elif "pente" in self.rules:
             self.board_class = PenteBoard
+            model_filename = "pente_model.pth"  # Model trained for Pente
         else:
+            # Fallback to Gomoku settings
             self.board_class = GBoard
+            model_filename = "alphazero_policy_v_best.pth"
 
-        # --- MODEL LOADING ---
+        # --- 2. MODEL LOADING ---
         # The evaluation server does not have a GPU, so 'cpu' will be selected automatically.
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Initialize the architecture used during training (channels=128)
+        # Initialize the architecture (same for both games: 2 channels, 128 filters)
         self.model = PolicyValueNet(board_size=board_size, channels=128)
 
-        # Path to the trained weights
-        model_path = os.path.join("CNN", "alphazero_policy_v_best.pth")
+        # Construct the full path to the weight file
+        model_path = os.path.join("CNN", model_filename)
 
         if os.path.exists(model_path):
             try:
@@ -40,14 +45,14 @@ class Player:
                 self.model.to(self.device)
                 self.model.eval()
             except Exception as e:
-                print(f"[Player] Error loading model: {e}")
+                print(f"[Player] Error loading model {model_filename}: {e}")
                 self.model = None
         else:
-            # print(f"[Player] Warning: Model file not found at {model_path}")
+            # Model file missing - MCTS will run in random rollout mode (fallback)
             self.model = None
 
     def play(self, board, turn_number, last_opponent_move):
-        # Optimization: If the board is empty, play center immediately
+        # Optimization: If the board is empty, play center immediately to save time.
         is_empty = not any(cell != 0 for row in board for cell in row)
         if is_empty:
             center = self.board_size // 2
@@ -65,6 +70,7 @@ class Player:
 
         # 3. Configure Neural MCTS
         # Simulation limit set to 250 to stay safely within the 5s time limit on CPU
+        # Timeout buffer set to 4.0s
         mcts = MCTS_Neural(root, me, self.model, self.device, simulation_limit=250, timeout=4.0)
 
         # 4. Get best move
@@ -75,7 +81,7 @@ class Player:
             # Return (row, col) as required by the project specification
             return row, col
         else:
-            # Fallback: Random move if something goes wrong
+            # Fallback: Random move if something goes wrong or no legal moves found
             possible_moves = [(r, c) for r in range(self.board_size) for c in range(self.board_size) if
                               board[r][c] == 0]
             if possible_moves:

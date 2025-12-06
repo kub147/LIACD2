@@ -161,7 +161,7 @@ class PolicyDataset(Dataset):
                 # Accept two formats:
                 # 1) b0..b224, cp, move_x, move_y
                 # 2) b0..b224, cp, move_x, move_y, outcome
-                if len(row) not in (action_size + 3, action_size + 4):
+                if len(row) not in (action_size + 3, action_size + 4, 233):
                     continue
 
                 try:

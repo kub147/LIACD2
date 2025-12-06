@@ -14,6 +14,7 @@ import csv
 from copy import deepcopy
 
 from board_logic_and_mcts.Gomoku_Board import GBoard
+from board_logic_and_mcts.Pente_Board import PBoard
 from board_logic_and_mcts.Node import Node
 
 # Path setup
@@ -21,7 +22,7 @@ RAW_DIR = os.path.join(current_dir, "raw")
 os.makedirs(RAW_DIR, exist_ok=True)
 
 # Output filename
-FILENAME = os.path.join(RAW_DIR, "golden_data_with_value.csv")
+FILENAME = os.path.join(RAW_DIR, "golden_data_with_value3.csv")
 
 
 class MCTS:
@@ -112,6 +113,8 @@ class MCTS:
 
 def run(size, starting_turn=15, ending_turn=40, timeout=60, simulation_limit_X=1000, simulation_limit_O=1000):
     game = GBoard(size)
+    # change:
+    #game = PBoard(size)
     current_turn = 0
     x = 2
     o = 1
@@ -179,7 +182,7 @@ def run(size, starting_turn=15, ending_turn=40, timeout=60, simulation_limit_X=1
 
 if __name__ == "__main__":
     # Generate games in a loop
-    SIMS = 800
+    SIMS = 400
     GAMES_TO_PLAY = 2000
 
     print(f"--- STARTING DATA GENERATION ({GAMES_TO_PLAY} games) ---")
