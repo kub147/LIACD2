@@ -22,7 +22,7 @@ RAW_DIR = os.path.join(current_dir, "raw")
 os.makedirs(RAW_DIR, exist_ok=True)
 
 # Output filename
-FILENAME = os.path.join(RAW_DIR, "golden_data_with_value3.csv")
+FILENAME = os.path.join(RAW_DIR, "gomoku_data_with_value.csv")
 
 
 class MCTS:

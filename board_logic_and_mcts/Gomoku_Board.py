@@ -85,7 +85,7 @@ class GBoard:
                     ((1, 1), (-1, -1)),  # Main diagonal
                     ((1, -1), (-1, 1))]  # Second-diagonal
     
-        if x or y is None:
+        if x is None or y is None:
             return False
 
         for (dy1, dx1), (dy2, dx2) in directions:
