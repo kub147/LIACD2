@@ -1,6 +1,7 @@
 import random
 from copy import deepcopy
-from Node import Node
+from board_logic_and_mcts.Node import Node
+
 
 class MCTS:
     def __init__(self, initial_state, current_player, simulation_limit=10000):

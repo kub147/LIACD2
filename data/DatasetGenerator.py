@@ -1,19 +1,32 @@
-import random
-import time
-from copy import deepcopy
-from board_logic_and_mcts.Gomoku_Board import GBoard
-from board_logic_and_mcts.Node import Node
-import csv
-
-# ensure project root on sys.path
+import sys
 import os
 
+# --- FIX: Konfiguracja ścieżek MUSI być przed importami z projektu ---
+# 1. Pobieramy ścieżkę do folderu, w którym jest ten plik (czyli .../LIACD2/data)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# 2. Pobieramy folder nadrzędny (główny folder projektu, czyli .../LIACD2)
+project_root = os.path.dirname(current_dir)
+# 3. Dodajemy go do ścieżek systemowych, żeby Python widział foldery 'board_logic_and_mcts' itp.
+sys.path.append(project_root)
+# ---------------------------------------------------------------------
+
+# Teraz bezpiecznie możemy importować resztę
+import random
+import time
+import csv
+from copy import deepcopy
+
+# Importy z Twojego projektu
+from board_logic_and_mcts.Gomoku_Board import GBoard
+from board_logic_and_mcts.Node import Node
+
+# --- Reszta konfiguracji plików ---
 # Always build paths relative to this file
-RAW_DIR = os.path.join(os.path.dirname(__file__), "raw")
+RAW_DIR = os.path.join(current_dir, "raw")
 os.makedirs(RAW_DIR, exist_ok=True)
 
-# Default filename (used ONLY when running this file directly)
-FILENAME = os.path.join(RAW_DIR, "Gomoku_15x15.csv")
+# Default filename
+FILENAME = os.path.join(RAW_DIR, "golden_data_with_value.csv")
 
 
 class MCTS:
@@ -153,68 +166,84 @@ def run(size, starting_turn=15, ending_turn=40, timeout=60, simulation_limit_X=1
         game.printBoard()
         playerX = False if playerX else True
 
+    game_history = []
+
     while ((not game.isBoardFull() and not game_is_over) or game.isTie()) and (current_turn < ending_turn):
         currentplayer = x if playerX else o
-        game.printBoard()
-        print(f"It is now {currentplayer}'s turn!")
-        current_turn += 1
-        # N sei se a arvore do MCTS vai fzr update do root para preservar as vitórias ou cirar um árvore de zero
+        # ... (tu jest Twoja logika wyświetlania printów - zostaw ją) ...
+
+        # Logika wyboru ruchu przez MCTS (zostaw jak jest w oryginale)
         if playerX:
             root = Node(game, None)
             mcts = MCTS(root, x, simulation_limit_X, timeout)
-            start = time.time()
-            best_node = mcts.best_move()
-            col, row = best_node.board.last_move
-            end = time.time()
-            if mcts.gameOver:
-                print(f"{currentplayer} chose column : ", col + 1, " row : ", row + 1)
-                print(f"Time taken: {end - start:.2f}")
-                break
-
+            best_node = mcts.best_move()  # To używa starego MCTS do generowania danych - I DOBRZE (na razie)
         else:
             root = Node(game, None)
             mcts = MCTS(root, o, simulation_limit_O, timeout)
-            start = time.time()
             best_node = mcts.best_move()
-            col, row = best_node.board.last_move
-            end = time.time()
-            if mcts.gameOver:
-                print(f"{currentplayer} chose column : ", col + 1, " row : ", row + 1)
-                print(f"Time taken: {end - start:.2f}")
-                break
+
+        col, row = best_node.board.last_move
+
+        # --- ZMIANA: Zamiast pisać do CSV, zapisz do RAMu ---
+        flattened_board = [cell for row_data in game.board for cell in row_data]
+        # Zapisujemy: [plansza, kto_mial_ruch, gdzie_zagral]
+        game_history.append([flattened_board, currentplayer, (col, row)])
 
         game.makeMove(col, row, currentplayer)
-        print(f"{currentplayer} chose column : ", col + 1, " row : ", row + 1)
 
-        flattened_board = []
-        for row_data in game.board:
-            for cell in row_data:
-                flattened_board.append(cell)
+        # Sprawdź czy koniec gry (skrótowo, używając logiki z Twojego kodu)
+        if game.isWon(col, row, currentplayer):
+            game_is_over = True
+            break  # Wychodzimy z pętli while, bo mamy zwycięzcę
 
-        # -- Write the flattened row into the csv + the coordinates of the last move
-        with open(FILENAME, 'a', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            row_with_move = flattened_board + [currentplayer] + [best_node.board.last_move]
-            writer.writerow(row_with_move)
+        playerX = not playerX
+        current_turn += 1
 
-        playerX = False if playerX else True
+    # --- ZMIANA: Zapis do pliku PO zakończeniu gry ---
+    # Ustal kto wygrał:
+    winner = 0  # Remis
+    if game_is_over:
+        # Skoro pętla pękła po ruchu 'currentplayer', to on wygrał
+        winner = currentplayer
 
-    # After game is won
-    game.printBoard()
-    if game.isTie():
-        print("It's a tie!")
-    else:
-        print(f"Player {currentplayer} has won!\n")
+    with open(FILENAME, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        for state, player_who_moved, move in game_history:
+            # AlphaZero Value Logic:
+            # 1.0 jeśli ten stan prowadzi do wygranej gracza 'player_who_moved'
+            # -1.0 jeśli prowadzi do przegranej
+            # 0.0 jeśli remis
 
-    # Use MCTS to generate the boards,
-    # Write the output into the dataset.
+            val = 0.0
+            if winner != 0:
+                val = 1.0 if player_who_moved == winner else -1.0
+
+            # Zapisujemy: plansza... + gracz + move_x + move_y + WYNIK (Value)
+            # Uwaga: move to tuple (col, row), a col to x, row to y
+            writer.writerow(state + [player_who_moved] + [move[0], move[1]] + [val])
+
+    print(f"Game Saved. Winner: {winner}")
 
 
 if __name__ == "__main__":
-    # Running the generator directly (not via wrapper)
-    # Here you may customize defaults, but DO NOT call run() on import
+    # Running the generator directly
     os.makedirs(RAW_DIR, exist_ok=True)
     print(f"[INFO] Direct mode. Writing to: {FILENAME}")
-    # Example single run (optional, możesz zakomentować jeśli nie używasz):
-    # run(size=15, starting_turn=15, ending_turn=60, timeout=60,
-    #     simulation_limit_X=10000, simulation_limit_O=10000)
+
+    # Ustawienia dla szybkiego generowania danych
+    # Zmniejszamy simulation_limit do 1000, żeby gra trwała sekundy/minuty, a nie godziny
+    SIMS = 1000
+    GAMES_TO_PLAY = 100
+
+    print(f"Starting generation of {GAMES_TO_PLAY} games with {SIMS} simulations...")
+
+    for i in range(GAMES_TO_PLAY):
+        print(f"--- Game {i + 1} / {GAMES_TO_PLAY} ---")
+        run(size=15,
+            starting_turn=10,  # Lekko mniejszy starting_turn przyspieszy grę
+            ending_turn=60,
+            timeout=60,
+            simulation_limit_X=SIMS,
+            simulation_limit_O=SIMS)
+
+    print("Done!")

@@ -1,45 +1,83 @@
-
-from board_logic_and_mcts.Gomoku_Board import GBoard
-from board_logic_and_mcts.Pente_Board import PenteBoard
-from board_logic_and_mcts.MCTS import MCTS
-from board_logic_and_mcts.Node import Node
+import torch
+import os
 import time
+import random
 
-# Rules: "Gomoku" or "Pente"
-# Board_size: 15 or 50
+# Importy z Twojego projektu
+from board_logic_and_mcts.Gomoku_Board import GBoard
+from board_logic_and_mcts.Pente_Board import PBoard as PenteBoard
+from board_logic_and_mcts.MCTS_Neural import MCTS_Neural
+from board_logic_and_mcts.Node import Node
+
+# --- FIX: Używamy nn_model, bo na nim był robiony trening (train_policy.py) ---
+from CNN.nn_model import PolicyValueNet
+
 
 class Player:
-    def __init__(self, rules, board_size):          # returns a Board Object, 
-        self.rules = rules                          # board logic and move making are implemented in the board object
+    def __init__(self, rules, board_size):
+        self.rules = rules.lower()
         self.board_size = board_size
-        self.board_class = None
-        if (rules == "Gomoku"):
+
+        if "gomoku" in self.rules:
             self.board_class = GBoard
+        elif "pente" in self.rules:
+            self.board_class = PenteBoard
         else:
-            self.board_class = PBoard
+            self.board_class = GBoard
 
-# player_symbol is always 1
+        # --- ŁADOWANIE MODELU ---
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    def play(self, board: list, turn_number, last_opponent_move: tuple, player_symbol=1):
-        game = self.board_class(size)
+        # FIX: Zmiana klasy na PolicyValueNet i channels na 128 (zgodnie z train_policy.py)
+        self.model = PolicyValueNet(board_size=board_size, channels=128)
+
+        # Ścieżka do wag
+        model_path = os.path.join("CNN", "alphazero_policy_v_best.pth")
+
+        if os.path.exists(model_path):
+            try:
+                state_dict = torch.load(model_path, map_location=self.device)
+                self.model.load_state_dict(state_dict)
+                self.model.to(self.device)
+                self.model.eval()
+                # print(f"[Player] Model loaded successfully.")
+            except Exception as e:
+                print(f"[Player] Error loading model: {e}")  # Zostawiamy printa do debugu
+                self.model = None
+        else:
+            self.model = None
+
+    def play(self, board, turn_number, last_opponent_move):
+        # --- FIX: Optymalizacja pustej planszy (natychmiastowy ruch) ---
+        # Sprawdzamy czy plansza jest pusta (suma 1 i 2 wynosi 0)
+        is_empty = not any(cell != 0 for row in board for cell in row)
+        if is_empty:
+            center = self.board_size // 2
+            return center, center
+
+
+        # 1. Odtworzenie stanu gry
+        game = self.board_class(self.board_size)
         game.board = board
-        opponent_move_x, opponent_move_y = last_opponent_move
-        game.makeMove(opponent_move_x, opponent_move_y, player_symbol)
-        print("Opponent move registered.")
-        print("Now planning next move...")
-        
-        # Call MCTS algorithm to determine next move
-        root = Node(game, None) #Current game after player makes move
-        mcts = MCTS(root, player_symbol)
-        start = time.time()
+
+        me = 1
+
+        # 2. Tworzymy korzeń drzewa
+        root = Node(game, None)
+
+        # 3. Konfiguracja MCTS
+        mcts = MCTS_Neural(root, me, self.model, self.device, simulation_limit=250, timeout=4.0)
+        # 4. Decyzja
         best_node = mcts.best_move()
-        col, row = best_node.board.last_move
-        end = time.time()
-        if mcts.gameOver:
-            print("[TEAM NAME] chose column : ", col + 1, " row : ", row + 1)
-            print(f"Time taken: {end - start:.2f}")
-            
-#            game.makeMove(col, row, ai)        // THIS METHOD MAKeS MOVE
-        print("[TEAM NAME] chose column : ", col + 1, " row : ", row + 1)
-        print(f"Time taken: {end - start:.2f}")
-        return row, col     #row is y, col is x
+
+        if best_node and best_node.board and best_node.board.last_move:
+            col, row = best_node.board.last_move
+            return row, col
+        else:
+            # Fallback
+            import random
+            possible_moves = [(r, c) for r in range(self.board_size) for c in range(self.board_size) if
+                              board[r][c] == 0]
+            if possible_moves:
+                return random.choice(possible_moves)
+            return 0, 0

@@ -34,7 +34,7 @@ class ResNetPolicyValueNet(nn.Module):
         self.action_size = board_size * board_size
 
         # --- FIX 1: Input channel changed from 2 to 1 ---
-        self.start_conv = nn.Conv2d(1, channels, kernel_size=3, padding=1, bias=True)
+        self.start_conv = nn.Conv2d(2, channels, kernel_size=3, padding=1, bias=True)
         self.start_bn = nn.BatchNorm2d(channels)
 
         self.res_blocks = nn.Sequential(*[ResBlock(channels) for _ in range(num_res_blocks)])
