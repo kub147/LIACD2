@@ -180,7 +180,7 @@ def run(size, starting_turn=15, ending_turn=40, timeout=60, simulation_limit_X=1
 if __name__ == "__main__":
     # Generate games in a loop
     SIMS = 800
-    GAMES_TO_PLAY = 1000
+    GAMES_TO_PLAY = 2000
 
     print(f"--- STARTING DATA GENERATION ({GAMES_TO_PLAY} games) ---")
     print(f"Output file: {FILENAME}")
