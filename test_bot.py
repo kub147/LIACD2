@@ -1,59 +1,53 @@
 import time
 from player import Player
-from board_logic_and_mcts.Gomoku_Board import GBoard
 
 
 def test():
-    print("--- ROZPOCZYNAM TEST BOTA ---")
+    print("--- STARTING BOT SELF-TEST ---")
 
-    # 1. Inicjalizacja
+    # 1. Initialization
     try:
-        # Tworzymy bota (Gomoku, plansza 15)
         bot = Player("gomoku", 15)
-        print("[OK] Bot zainicjalizowany.")
+        print("[OK] Bot initialized.")
     except Exception as e:
-        print(f"[BLAD] Nie udalo sie stworzyc instancji Player: {e}")
+        print(f"[FAIL] Could not create Player instance: {e}")
         return
 
-    # 2. Sprawdzenie czy model zaladowany
+    # 2. Check model loading
     if bot.model is not None:
-        print("[OK] Model sieci neuronowej zaladowany (nie jest None).")
+        print("[OK] Neural Network model loaded successfully.")
     else:
-        print("[OSTRZEZENIE] Bot dziala w trybie RANDOM (model = None). Sprawdz sciezke do pliku .pth!")
+        print("[WARNING] Bot running in RANDOM mode (model is None). Check .pth path!")
 
-        # ... (wcześniejszy kod)
-
-    # 3. Przygotowanie planszy (NIE PUSTEJ)
+    # 3. Mid-game simulation
     board_size = 15
     board = [[0 for _ in range(board_size)] for _ in range(board_size)]
 
-    # Symulujemy kilka ruchów (żeby bot musiał myśleć)
-    board[7][7] = 2  # Przeciwnik na środku
-    board[7][8] = 1  # My obok
-    board[8][8] = 2  # Przeciwnik
+    # Simulate a few stones
+    board[7][7] = 2
+    board[7][8] = 1
+    board[8][8] = 2
 
-    turn = 3  # 3. tura
-    last_opp_move = (8, 8)  # Ostatni ruch przeciwnika (col, row)
+    turn = 3
+    last_opp_move = (8, 8)
 
-    print("\n--- TEST RUCHU (SYTUACJA: SRODEK GRY) ---")
+    print("\n--- MOVE TEST (Mid-Game Simulation) ---")
     start = time.time()
 
     try:
         move = bot.play(board, turn, last_opp_move)
-        # ... (reszta kodu bez zmian)
         end = time.time()
 
-        print(f"[SUKCES] Bot zwrocil ruch: {move}")
-        print(f"Czas myslenia: {end - start:.2f} sekund")
+        print(f"[SUCCESS] Bot returned move: {move}")
+        print(f"Thinking time: {end - start:.2f} seconds")
 
-        # Weryfikacja typu zwracanego
         if isinstance(move, tuple) and len(move) == 2:
-            print("[OK] Format ruchu poprawny (row, col).")
+            print("[OK] Move format is correct (row, col).")
         else:
-            print(f"[BLAD] Zly format ruchu! Otrzymano: {type(move)}")
+            print(f"[FAIL] Incorrect move format! Received: {type(move)}")
 
     except Exception as e:
-        print(f"[BLAD KRYTYCZNY] Bot wyrzucil wyjatek podczas play(): {e}")
+        print(f"[CRITICAL FAIL] Bot crashed during play(): {e}")
         import traceback
         traceback.print_exc()
 

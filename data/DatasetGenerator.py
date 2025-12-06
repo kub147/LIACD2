@@ -1,31 +1,26 @@
 import sys
 import os
 
-# --- FIX: Konfiguracja ścieżek MUSI być przed importami z projektu ---
-# 1. Pobieramy ścieżkę do folderu, w którym jest ten plik (czyli .../LIACD2/data)
+# --- PATH CONFIGURATION ---
+# Add project root to sys.path to allow imports from sibling directories
 current_dir = os.path.dirname(os.path.abspath(__file__))
-# 2. Pobieramy folder nadrzędny (główny folder projektu, czyli .../LIACD2)
 project_root = os.path.dirname(current_dir)
-# 3. Dodajemy go do ścieżek systemowych, żeby Python widział foldery 'board_logic_and_mcts' itp.
 sys.path.append(project_root)
-# ---------------------------------------------------------------------
+# --------------------------
 
-# Teraz bezpiecznie możemy importować resztę
 import random
 import time
 import csv
 from copy import deepcopy
 
-# Importy z Twojego projektu
 from board_logic_and_mcts.Gomoku_Board import GBoard
 from board_logic_and_mcts.Node import Node
 
-# --- Reszta konfiguracji plików ---
-# Always build paths relative to this file
+# Path setup
 RAW_DIR = os.path.join(current_dir, "raw")
 os.makedirs(RAW_DIR, exist_ok=True)
 
-# Default filename
+# Output filename
 FILENAME = os.path.join(RAW_DIR, "golden_data_with_value.csv")
 
 
@@ -38,12 +33,9 @@ class MCTS:
         self.timeout = timeout
 
     def selection(self):
-        # Traverse the tree starting from the root, choosing the best child
-        # using UCT (Upper Confidence Bound) until a leaf node is reached.
         node = self.root
         while node.children:
             node = node.best_child()
-
         return node
 
     def expansion(self, node):
@@ -53,24 +45,21 @@ class MCTS:
             node.add_child(new_node)
 
     def simulation(self, node):
-        # Simulate a random playout from the given node until the game ends.
-        # The simulation follows random moves until there's a winner or a tie.
         sim_board = deepcopy(node.board)
         player = 1 if self.current_player == 2 else 2
 
         while not sim_board.isBoardFull():
             legal_moves = [(i, j) for i in range(sim_board.board_width) for j in range(sim_board.board_height) if
                            sim_board.isLegalMove(i, j)]
+            if not legal_moves: break
             col, row = random.choice(legal_moves)
             sim_board.makeMove(col, row, player)
 
             if sim_board.isWon(col, row, player):
-                return player  # Return the winner
+                return player
 
-            # Switch players
             player = 1 if player == 2 else 2
-
-        return 0  # It's a tie (draw)
+        return 0
 
     def backpropagation(self, node, result):
         while node is not None:
@@ -92,14 +81,10 @@ class MCTS:
                 leaf.board.makeMove(i, j, self.current_player)
                 self.gameOver = True
                 return True
-
         return False
 
     def best_move(self):
-        # Start timing
         start_time = time.time()
-
-        # Main MCTS loop: run simulations, expand, simulate, backpropagate
         leaf = self.selection()
         if not leaf.children:
             self.expansion(leaf)
@@ -107,143 +92,108 @@ class MCTS:
             return leaf
 
         children_array_size = len(leaf.children)
-        for child in leaf.children:  # Visits all children at least once
+        for child in leaf.children:
             result = self.simulation(child)
             self.backpropagation(child, result)
 
-        children = leaf.children  # Turn the leaf.children into a static variable
+        children = leaf.children
         i = children_array_size
 
-        # Run simulations until either simulation_limit or timeout is reached
         while i < self.simulation_limit:
-            # Check if timeout has been reached
-            elapsed_time = time.time() - start_time
-            if elapsed_time >= self.timeout:
-                print(f"Timeout reached after {elapsed_time:.2f} seconds")
+            if (time.time() - start_time) >= self.timeout:
                 break
-
             leaf = random.choice(children)
             result = self.simulation(leaf)
             self.backpropagation(leaf, result)
             i += 1
 
-        # ---------------------------------------------------
-
-        for idx, child in enumerate(children):
-            print(f"NODE {idx + 1} VISITS: ", child.visits)
-            print(f"NODE {idx + 1} WINS: ", child.wins)
-            print(f"NODE {idx + 1} UCT: ", child.get_uct_value())
-
-        best_node = self.root.best_child()
-
-        print("Simulations: ", i)
-        print("BEST NODE VISITS: ", best_node.visits)
-        print("BEST NODE WINS", best_node.wins)
-        print("BEST UCT : ", best_node.get_uct_value())
-        # After all simulations, return the child with the highest win rate
-
         return self.root.best_child()
 
 
-# Board size 15
-# Starting_turn: The turn when the midgame starts, usually 10-15 moves
-# Ending_turn: The turn when the midgame ends, usually 40 moves
-
-def run(size, starting_turn=15, ending_turn=40, timeout=60, simulation_limit_X=10000, simulation_limit_O=10000):
+def run(size, starting_turn=15, ending_turn=40, timeout=60, simulation_limit_X=1000, simulation_limit_O=1000):
     game = GBoard(size)
     current_turn = 0
     x = 2
     o = 1
-    playerX = True  # False for player 1 first, True for player 2 first
-
+    playerX = True
     game_is_over = False
 
-    # -- randomize moves in the begining
+    # Randomize start
     for m in range(starting_turn):
         currentplayer = x if playerX else o
         current_turn += 1
-        game.makeMove(random.randint(0, 14), random.randint(0, 14), currentplayer)
-        game.printBoard()
-        playerX = False if playerX else True
+        game.makeMove(random.randint(0, size - 1), random.randint(0, size - 1), currentplayer)
+        playerX = not playerX
 
     game_history = []
 
     while ((not game.isBoardFull() and not game_is_over) or game.isTie()) and (current_turn < ending_turn):
         currentplayer = x if playerX else o
-        # ... (tu jest Twoja logika wyświetlania printów - zostaw ją) ...
 
-        # Logika wyboru ruchu przez MCTS (zostaw jak jest w oryginale)
         if playerX:
             root = Node(game, None)
             mcts = MCTS(root, x, simulation_limit_X, timeout)
-            best_node = mcts.best_move()  # To używa starego MCTS do generowania danych - I DOBRZE (na razie)
+            best_node = mcts.best_move()
         else:
             root = Node(game, None)
             mcts = MCTS(root, o, simulation_limit_O, timeout)
             best_node = mcts.best_move()
 
-        col, row = best_node.board.last_move
+        if best_node.board.last_move:
+            col, row = best_node.board.last_move
 
-        # --- ZMIANA: Zamiast pisać do CSV, zapisz do RAMu ---
-        flattened_board = [cell for row_data in game.board for cell in row_data]
-        # Zapisujemy: [plansza, kto_mial_ruch, gdzie_zagral]
-        game_history.append([flattened_board, currentplayer, (col, row)])
+            # Buffer data in RAM
+            flattened_board = [cell for row_data in game.board for cell in row_data]
+            game_history.append([flattened_board, currentplayer, (col, row)])
 
-        game.makeMove(col, row, currentplayer)
+            game.makeMove(col, row, currentplayer)
 
-        # Sprawdź czy koniec gry (skrótowo, używając logiki z Twojego kodu)
-        if game.isWon(col, row, currentplayer):
-            game_is_over = True
-            break  # Wychodzimy z pętli while, bo mamy zwycięzcę
+            if game.isWon(col, row, currentplayer):
+                game_is_over = True
+                break
+        else:
+            break
 
         playerX = not playerX
         current_turn += 1
 
-    # --- ZMIANA: Zapis do pliku PO zakończeniu gry ---
-    # Ustal kto wygrał:
-    winner = 0  # Remis
+    # Determine winner and save
+    winner = 0
     if game_is_over:
-        # Skoro pętla pękła po ruchu 'currentplayer', to on wygrał
-        winner = currentplayer
+        winner = currentplayer  # The player who made the last move won
 
     with open(FILENAME, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for state, player_who_moved, move in game_history:
-            # AlphaZero Value Logic:
-            # 1.0 jeśli ten stan prowadzi do wygranej gracza 'player_who_moved'
-            # -1.0 jeśli prowadzi do przegranej
-            # 0.0 jeśli remis
-
+            # Value Calculation:
+            # 1.0 if the move led to a win for the player who made it
+            # -1.0 if it led to a loss
             val = 0.0
             if winner != 0:
                 val = 1.0 if player_who_moved == winner else -1.0
 
-            # Zapisujemy: plansza... + gracz + move_x + move_y + WYNIK (Value)
-            # Uwaga: move to tuple (col, row), a col to x, row to y
             writer.writerow(state + [player_who_moved] + [move[0], move[1]] + [val])
 
-    print(f"Game Saved. Winner: {winner}")
+    print(f"[Generator] Game finished. Winner: {winner}. Data saved.")
 
 
 if __name__ == "__main__":
-    # Running the generator directly
-    os.makedirs(RAW_DIR, exist_ok=True)
-    print(f"[INFO] Direct mode. Writing to: {FILENAME}")
+    # Generate games in a loop
+    SIMS = 800
+    GAMES_TO_PLAY = 1000
 
-    # Ustawienia dla szybkiego generowania danych
-    # Zmniejszamy simulation_limit do 1000, żeby gra trwała sekundy/minuty, a nie godziny
-    SIMS = 1000
-    GAMES_TO_PLAY = 100
-
-    print(f"Starting generation of {GAMES_TO_PLAY} games with {SIMS} simulations...")
+    print(f"--- STARTING DATA GENERATION ({GAMES_TO_PLAY} games) ---")
+    print(f"Output file: {FILENAME}")
 
     for i in range(GAMES_TO_PLAY):
-        print(f"--- Game {i + 1} / {GAMES_TO_PLAY} ---")
-        run(size=15,
-            starting_turn=10,  # Lekko mniejszy starting_turn przyspieszy grę
-            ending_turn=60,
-            timeout=60,
-            simulation_limit_X=SIMS,
-            simulation_limit_O=SIMS)
-
-    print("Done!")
+        print(f"Generating game {i + 1}...")
+        try:
+            run(size=15,
+                starting_turn=8,
+                ending_turn=80,
+                timeout=30,
+                simulation_limit_X=SIMS,
+                simulation_limit_O=SIMS)
+        except Exception as e:
+            print(f"Error in game {i + 1}: {e}")
+            continue

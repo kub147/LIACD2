@@ -3,16 +3,15 @@ import numpy as np
 import time
 import random
 
-# Importujemy starą klasę
 from board_logic_and_mcts.MCTS import MCTS
 from board_logic_and_mcts.Node import Node
 
 
 class MCTS_Neural(MCTS):
     def __init__(self, initial_state, current_player, model, device, simulation_limit=800, timeout=5):
-        # FIX: Nie przekazujemy 'timeout' do rodzica, bo MCTS.py go nie obsługuje
+        # Do not pass timeout to parent MCTS as it doesn't support it
         super().__init__(initial_state, current_player, simulation_limit)
-        self.timeout = timeout  # Zapisujemy timeout w nowej klasie
+        self.timeout = timeout
 
         self.model = model
         self.device = device
@@ -22,16 +21,15 @@ class MCTS_Neural(MCTS):
 
     def evaluate_leaf(self, node):
         """
-        Zamiast robić losowy 'simulation', oceniamy planszę siecią neuronową.
-        Zwraca wartość od -1 (przegrana) do 1 (wygrana) z perspektywy gracza, który ma ruch.
+        Evaluates the board state using the Neural Network instead of random rollouts.
+        Returns a value from -1 (loss) to 1 (win) from the perspective of the player to move.
         """
-        board_size = node.board.board_width
         board_np = np.array(node.board.board)
 
-        # Ustalenie kto ma ruch (dla sieci 1=Ja, 2=Przeciwnik)
+        # Determine current player for the network input (Channel 0 = Current, Channel 1 = Opponent)
         flat_board = board_np.flatten()
         stones = np.count_nonzero(flat_board)
-        # Zakładamy, że czarny (1) zaczyna. Jeśli parzysta liczba kamieni -> ruch ma 1.
+        # Assuming Black (1) starts. Even stones = Player 1's turn.
         current_p = 1 if stones % 2 == 0 else 2
 
         plane_me = (board_np == current_p).astype(np.float32)
@@ -41,14 +39,18 @@ class MCTS_Neural(MCTS):
         input_tensor = torch.from_numpy(input_tensor).unsqueeze(0).float().to(self.device)
 
         with torch.no_grad():
-            policy_logits, value_pred = self.model(input_tensor)
+            _, value_pred = self.model(input_tensor)
 
         value = value_pred.item()
         return value, current_p
 
     def backpropagation_neural(self, node, value, value_perspective_player):
+        """
+        Backpropagation adapted for continuous value [-1, 1] from the network.
+        """
         while node is not None:
             node.visits += 1
+            # Convert [-1, 1] range to probability [0, 1]
             win_prob = (value + 1) / 2.0
 
             if value_perspective_player == self.current_player:
@@ -60,18 +62,19 @@ class MCTS_Neural(MCTS):
             node = node.parent
 
     def check_for_win(self, leaf) -> bool:
-        # Wywołujemy metodę z klasy bazowej (MCTS), jeśli jest dostępna,
-        # w przeciwnym razie musimy ją zaimplementować lub użyć super().
-        # W Twoim pliku MCTS.py metoda check_for_win istnieje.
         return super().check_for_win(leaf)
 
     def best_move(self):
+        """
+        Main MCTS loop using Neural Network evaluation and strict time control.
+        """
         start_time = time.time()
 
+        # Fallback to vanilla MCTS if model is missing
         if self.model is None:
             return super().best_move()
 
-        # 1. Selection & Expansion (tylko korzenia)
+        # 1. Initial Selection & Expansion (Root only)
         leaf = self.selection()
         if not leaf.children:
             self.expansion(leaf)
@@ -79,13 +82,10 @@ class MCTS_Neural(MCTS):
         if self.check_for_win(leaf):
             return leaf
 
-        # --- TU BYŁ BŁĄD: Usunęliśmy pętlę "Inicjalna ocena", która marnowała 8 sekund ---
-
+        # 2. Main Simulation Loop
         i = 0
-
-        # Główna pętla z zabezpieczeniem czasowym
         while i < self.simulation_limit:
-            # SPRAWDZENIE CZASU - TERAZ ZADZIAŁA POPRAWNIE
+            # Time control check
             if (time.time() - start_time) >= self.timeout:
                 break
 
@@ -101,7 +101,7 @@ class MCTS_Neural(MCTS):
                 if leaf.children:
                     leaf = random.choice(leaf.children)
 
-            # Evaluation
+            # Evaluation (Neural Network)
             val, perspective = self.evaluate_leaf(leaf)
 
             # Backpropagation
