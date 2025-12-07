@@ -25,7 +25,7 @@ python CNN/train_policy.py \
     --patience 10 \
     --batch-size 256 \
     --augment \
-    --model-out CNN/alphazero_policy_v_best.pth
+    --model-out CNN/final_gomoku_model.pth
 """
 
 import os
@@ -170,7 +170,7 @@ def main():
     ap.add_argument(
         "--model-out",
         type=str,
-        default="CNN/alphazero_policy_v_best.pth",
+        default="CNN/final_gomoku_model.pth",
         help="Where to save the best model."
     )
     args = ap.parse_args()

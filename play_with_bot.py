@@ -13,8 +13,8 @@ from CNN.nn_model import PolicyValueNet
 
 # --- KONFIGURACJA ---
 BOARD_SIZE = 15
-MODEL_PATH = "CNN/alphazero_policy_v_best.pth"  # Upewnij się, że masz ten plik!
-HUMAN_STARTS = True  # True = Ty zaczynasz (Czarne), False = Bot zaczyna
+MODEL_PATH = "CNN/final_gomoku_model.pth"  # Upewnij się, że masz ten plik!
+HUMAN_STARTS = False  # True = Ty zaczynasz (Czarne), False = Bot zaczyna
 
 
 class GomokuGUI:

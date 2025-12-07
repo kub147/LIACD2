@@ -33,7 +33,7 @@ from board_logic_and_mcts.Node import Node
 from CNN.nn_model import PolicyValueNet
 
 # Model + game defaults
-DEFAULT_MODEL_PATH = PROJECT_ROOT / "CNN" / "alphazero_policy_v_best.pth"
+DEFAULT_MODEL_PATH = PROJECT_ROOT / "CNN" / "final_gomoku_model.pth"
 DEFAULT_BOARD_N = 15
 
 # -------------------- Game Logic Helpers --------------------

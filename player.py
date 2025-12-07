@@ -19,14 +19,14 @@ class Player:
         # Select the appropriate board logic and model weights based on the rules.
         if "gomoku" in self.rules:
             self.board_class = GBoard
-            model_filename = "alphazero_policy_v_best.pth"  # Model trained for Gomoku
+            model_filename = "final_gomoku_model.pth"  # Model trained for Gomoku
         elif "pente" in self.rules:
             self.board_class = PenteBoard
             model_filename = "pente_model.pth"  # Model trained for Pente
         else:
             # Fallback to Gomoku settings
             self.board_class = GBoard
-            model_filename = "alphazero_policy_v_best.pth"
+            model_filename = "final_gomoku_model.pth"
 
         # --- 2. MODEL LOADING ---
         # The evaluation server does not have a GPU, so 'cpu' will be selected automatically.
