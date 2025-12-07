@@ -83,26 +83,31 @@ def to_two_planes(board, cp):
     # Result shape: (2, N, N)
     return np.stack([plane_me, plane_opp])
 
+
 def nn_choose_move(model, board, device):
+    """
+    Choose move using neural network policy.
+    Returns (x, y) where x=column, y=row (matching GBoard.makeMove convention)
+    """
     cp = current_player_sign(board)
     N = board.board_width
 
     # Prepare input
     x_np = to_two_planes(board, cp)
-    # Add batch dim -> (1, 2, N, N)
     x = torch.from_numpy(x_np).float().unsqueeze(0).to(device)
 
     model.eval()
     with torch.no_grad():
         policy_logits, _ = model(x)
 
-    # Mask illegal moves
+    # Get legal moves
     legals = legal_moves(board)
     if not legals:
         return None
 
-    legal_idxs = {y * N + x for (x, y) in legals} # Uwaga: policy_flat zazwyczaj y*N + x lub odwrotnie, zależnie od treningu
-    # W Twoim treningu (dataset_policy.py): row*N + col. row=y, col=x. Czyli y*N + x.
+    # FIXED: Use standard row*N+col indexing (matching training)
+    # Since legals returns (x, y) where x=col, y=row:
+    legal_idxs = {y * N + x for (x, y) in legals}   # row * N + col
 
     # Create mask
     mask = torch.full((1, policy_logits.size(1)), float("-inf"), device=device)
@@ -116,9 +121,46 @@ def nn_choose_move(model, board, device):
     masked = policy_logits + mask
     move_flat = int(torch.argmax(masked, dim=1).item())
 
-    move_y = move_flat // N
-    move_x = move_flat % N
-    return move_x, move_y
+    # FIXED: Unpack using standard convention
+    move_row = move_flat // N
+    move_col = move_flat % N
+
+    return move_col, move_row  # Return (x, y) as (col, row)
+
+
+# Helper functions needed (same as before):
+
+def current_player_sign(board):
+    """Return current player (1 or 2) based on piece counts."""
+    p1_count = sum(row.count(1) for row in board.board)
+    p2_count = sum(row.count(2) for row in board.board)
+    return 1 if p1_count == p2_count else 2
+
+
+def legal_moves(board):
+    """Returns list of legal moves as (x, y) tuples where x=col, y=row"""
+    moves = []
+    for x in range(board.board_width):
+        for y in range(board.board_height):
+            if board.isLegalMove(x, y):
+                moves.append((x, y))
+    return moves
+
+
+def to_two_planes(board, cp):
+    """
+    Build input planes (2, N, N) compatible with trained model.
+    Channel 0: Current Player stones
+    Channel 1: Opponent stones
+    """
+    N = board.board_width
+    arr = np.array(board.board, dtype=np.int8)
+    opponent = 1 if cp == 2 else 2
+
+    plane_me = (arr == cp).astype(np.float32)
+    plane_opp = (arr == opponent).astype(np.float32)
+
+    return np.stack([plane_me, plane_opp])
 
 # -------------------- MCTS Logic --------------------
 
