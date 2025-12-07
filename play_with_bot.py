@@ -14,8 +14,8 @@ from CNN.nn_model import PolicyValueNet
 # --- CONFIGURATION ---
 BOARD_SIZE = 15
 # Make sure this points to your BEST trained model
-MODEL_PATH = "CNN/alphazero_policy_v_best.pth"
-HUMAN_STARTS = True  # True = Human (Black), False = Bot (White)
+MODEL_PATH = "CNN/final_gomoku_model.pth"
+HUMAN_STARTS = False  # True = Human (Black), False = Bot (White)
 
 
 class GomokuGUI:
