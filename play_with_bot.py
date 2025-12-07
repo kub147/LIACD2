@@ -4,6 +4,7 @@ import torch
 import numpy as np
 from copy import deepcopy
 import os
+import random
 
 # Project imports
 from board_logic_and_mcts.Gomoku_Board import GBoard
@@ -14,7 +15,7 @@ from CNN.nn_model import PolicyValueNet
 # --- CONFIGURATION ---
 BOARD_SIZE = 15
 # Make sure this points to your BEST trained model
-MODEL_PATH = "CNN/final_gomoku_model.pth"
+MODEL_PATH = "CNN/gomoku_model_FINAL_V2.pth"
 HUMAN_STARTS = False  # True = Human (Black), False = Bot (White)
 
 
@@ -107,10 +108,30 @@ class GomokuGUI:
         print("Bot is thinking...")
         bot_player = 2 if HUMAN_STARTS else 1
 
+        # --- 1. OPTIMIZATION: Rigid opening to center (as in player.py) ---
+        # If bot starts and board is empty, hit the center.
+        # This saves time and guarantees the best opening.
+        center = self.board_size // 2
+        is_empty = True
+        for y in range(self.board_size):
+            for x in range(self.board_size):
+                if self.game.board[y][x] != 0:
+                    is_empty = False
+                    break
+            if not is_empty: break
+
+        if is_empty:
+            print("Bot (Opening): Center")
+            self.make_move(center, center, bot_player)
+            self.human_turn = True
+            return
+        # ---------------------------------------------------------------------
+
         # Use Neural MCTS
         root = Node(deepcopy(self.game), None)
-        # Simulation limit determines strength/speed. 400 is decent for testing.
-        mcts = MCTS_Neural(root, bot_player, self.model, self.device, simulation_limit=400, timeout=4.0)
+
+        # INCREASE SIMULATIONS: from 400 to 800 for stronger play
+        mcts = MCTS_Neural(root, bot_player, self.model, self.device, simulation_limit=800, timeout=10.0)
         best_node = mcts.best_move()
 
         if best_node and best_node.board.last_move:
@@ -118,7 +139,14 @@ class GomokuGUI:
             self.make_move(col, row, bot_player)
             self.human_turn = True
         else:
-            print("Bot has no moves left!")
+            print("Bot has no move (or something went wrong)!")
+            # Fallback - random move so the game doesn't freeze
+            legal_moves = [(c, r) for r in range(self.board_size) for c in range(self.board_size) if
+                           self.game.isLegalMove(c, r)]
+            if legal_moves:
+                c, r = random.choice(legal_moves)
+                self.make_move(c, r, bot_player)
+                self.human_turn = True
 
     def make_move(self, col, row, player):
         self.game.makeMove(col, row, player)

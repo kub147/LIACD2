@@ -19,7 +19,7 @@ class Player:
         # Select the appropriate board logic and model weights based on the rules.
         if "gomoku" in self.rules:
             self.board_class = GBoard
-            model_filename = "CNN/final_gomoku_model.pth"  # Model trained for Gomoku
+            model_filename = "gomoku_model_FINAL_V2.pth"  # Model trained for Gomoku
         elif "pente" in self.rules:
             self.board_class = PenteBoard
             model_filename = "pente_model.pth"  # Model trained for Pente
