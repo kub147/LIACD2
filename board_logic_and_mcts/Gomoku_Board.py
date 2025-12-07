@@ -1,6 +1,5 @@
 from copy import deepcopy
 
-
 class GBoard:
     def __init__(self, size):
         self.counter = 0
@@ -101,4 +100,5 @@ class GBoard:
                     new_board = deepcopy(self)
                     new_board.makeMove(j, i, current_player)
                     possible_boards.append(new_board)
+
         return possible_boards

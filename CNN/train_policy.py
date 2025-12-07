@@ -165,7 +165,14 @@ def main():
     ap.add_argument("--value-weight", type=float, default=0.0, help="Value loss weight (0 disables value loss).")
     ap.add_argument("--workers", type=int, default=4, help="DataLoader workers (default: 4).")
     ap.add_argument("--seed", type=int, default=1234, help="Random seed (default: 1234).")
-    ap.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda"], help="Device selection.")
+    #ap.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda"], help="Device selection.")
+    ap.add_argument(
+        "--device",
+        type=str,
+        default="auto",
+        choices=["auto", "cpu", "cuda", "mps"],
+        help="Device selection."
+    )
     ap.add_argument("--augment", action="store_true", help="Enable D4 symmetry augmentations.")
     ap.add_argument(
         "--model-out",
@@ -175,11 +182,23 @@ def main():
     )
     args = ap.parse_args()
 
-    # Device
+    # # Device
+    # if args.device == "auto":
+    #     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # else:
+    #     device = torch.device(args.device)
+    # print(f"[INFO] Using device: {device}")
+
     if args.device == "auto":
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if torch.backends.mps.is_available():
+            device = torch.device("mps")
+        elif torch.cuda.is_available():
+            device = torch.device("cuda")
+        else:
+            device = torch.device("cpu")
     else:
         device = torch.device(args.device)
+
     print(f"[INFO] Using device: {device}")
 
     # Seed + indexing self-test

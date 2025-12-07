@@ -19,14 +19,16 @@ class Player:
         # Select the appropriate board logic and model weights based on the rules.
         if "gomoku" in self.rules:
             self.board_class = GBoard
-            model_filename = "quick_testGOMOKU.pth"  # Model trained for Gomoku
+            # ZMIANA TUTAJ - wskazujemy Twój najlepszy model:
+            model_filename = "gomoku_TRULT_FINAL.pth"
         elif "pente" in self.rules:
             self.board_class = PenteBoard
-            #model_filename = "pente_model.pth"  # Model trained for Pente
+            # Tutaj wpisz nazwę modelu Pente, jak koledzy go zrobią:
+            model_filename = "pente_model.pth"
         else:
             # Fallback to Gomoku settings
             self.board_class = GBoard
-            model_filename = "quick_testGOMOKU.pth"
+            model_filename = "gomoku_FIXED_FINALLL.pth"
 
         # --- 2. MODEL LOADING ---
         # The evaluation server does not have a GPU, so 'cpu' will be selected automatically.
@@ -36,6 +38,7 @@ class Player:
         self.model = PolicyValueNet(board_size=board_size, channels=128)
 
         # Construct the full path to the weight file
+        # Zakładamy, że plik jest w folderze CNN względem tego skryptu
         model_path = os.path.join("CNN", model_filename)
 
         if os.path.exists(model_path):
@@ -76,7 +79,7 @@ class Player:
         # 4. Get best move
         best_node = mcts.best_move()
 
-        if best_node and best_node.board and best_node.board.last_move:
+        if best_node and best_node.board.last_move:
             col, row = best_node.board.last_move
             # Return (row, col) as required by the project specification
             return row, col

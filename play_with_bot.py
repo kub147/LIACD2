@@ -15,9 +15,14 @@ from CNN.nn_model import PolicyValueNet
 # --- CONFIGURATION ---
 BOARD_SIZE = 15
 # Make sure this points to your BEST trained model
-MODEL_PATH = "CNN/gomoku_FIXED_FINALLL.pth"
+MODEL_PATH = "CNN/gomoku_TRULY_FINAL.pth"
 HUMAN_STARTS = False  # True = Human (Black), False = Bot (White)
 
+def current_player_sign(board):
+    """Return current player (1 or 2) based on piece counts."""
+    p1_count = sum(row.count(1) for row in board.board)
+    p2_count = sum(row.count(2) for row in board.board)
+    return 1 if p1_count == p2_count else 2
 
 class GomokuGUI:
     def __init__(self, master):
@@ -131,7 +136,7 @@ class GomokuGUI:
         root = Node(deepcopy(self.game), None)
 
         # INCREASE SIMULATIONS: from 400 to 800 for stronger play
-        mcts = MCTS_Neural(root, bot_player, self.model, self.device, simulation_limit=800, timeout=10.0)
+        mcts = MCTS_Neural(root, bot_player, self.model, self.device, simulation_limit=3000, timeout=10.0)
         best_node = mcts.best_move()
 
         if best_node and best_node.board.last_move:

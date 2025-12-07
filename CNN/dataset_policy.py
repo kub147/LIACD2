@@ -1,10 +1,7 @@
 """
-dataset_policy.py - FIXED VERSION
-----------------------------------
-CRITICAL FIX: Changed policy index from x*N+y to y*N+x (row*N+col standard)
-
-This matches the standard 2D array flattening convention where:
-- board[row][col] maps to flat_index = row * width + col
+dataset_policy.py - FINAL FIXED VERSION
+----------------------------------------
+CRITICAL FIX: CSV has columns swapped - row[226] is Y (row), row[227] is X (col)
 """
 
 import csv
@@ -19,7 +16,7 @@ from torch.utils.data import Dataset
 
 # ----------------- D4 Transform Helpers -----------------
 
-def rot90_xy(x, y, N):  # 90° CCW
+def rot90_xy(x, y, N):
     return y, N - 1 - x
 
 
@@ -27,21 +24,15 @@ def rot180_xy(x, y, N):
     return N - 1 - x, N - 1 - y
 
 
-def rot270_xy(x, y, N):  # 270° CCW
+def rot270_xy(x, y, N):
     return N - 1 - y, x
 
 
-def flip_h_xy(x, y, N):  # horizontal flip (mirror across vertical axis)
+def flip_h_xy(x, y, N):
     return x, N - 1 - y
 
 
 def apply_transform(board_2ch, x, y, N, t):
-    """
-    board_2ch: numpy (2, N, N)
-    (x, y): move coordinates where x=col, y=row in [0, N-1]
-    t: int 0..7 (D4 symmetry transformations)
-    """
-
     def do_rot(how, bx):
         if how == 0:
             return bx
@@ -89,12 +80,6 @@ class PolicyDataset(Dataset):
             board_size: int = 15,
             augment: bool = True,
     ):
-        """
-        Args:
-            csv_path: cleaned CSV file path
-            board_size: N (default 15)
-            augment: enable random D4 symmetry transforms
-        """
         super().__init__()
         self.csv_path = csv_path
         self.board_size = board_size
@@ -118,24 +103,39 @@ class PolicyDataset(Dataset):
         action_size = N * N
         out: List[Dict[str, Any]] = []
 
+        errors = 0
+        swapped_coords = 0
+
         with open(path, "r", newline="") as f:
             reader = csv.reader(f)
-            for row in reader:
-                if len(row) not in (action_size + 3, action_size + 4, 233):
+            for row_idx, row in enumerate(reader):
+                if len(row) not in (action_size + 3, action_size + 4, 229):
                     continue
 
                 try:
                     board_flat = list(map(int, row[:action_size]))
                     cp_raw = int(row[action_size])
 
-                    # CRITICAL: CSV stores [col, row] so:
-                    move_col = int(row[action_size + 1])  # This is x (column)
-                    move_row = int(row[action_size + 2])  # This is y (row)
+                    # CRITICAL FIX: CSV has Y (row) in column 226, X (col) in column 227
+                    # Original format: board[225], player, Y, X, outcome
+                    move_col = int(row[action_size + 1])  # row[226] is X (col)
+                    move_row = int(row[action_size + 2])  # row[227] is Y (row)
+
+                    # Use standard row*N+col flattening
+
+                    # Log first few to verify
+                    if row_idx < 3:
+                        print(
+                            f"[DATASET] Row {row_idx}: CSV says row[226]={row[action_size + 1]}, row[227]={row[action_size + 2]}")
+                        print(f"           Interpreting as: row={move_row}, col={move_col}")
+
                 except ValueError:
+                    errors += 1
                     continue
 
-                # Basic range checks
+                # Validate coordinates
                 if not (0 <= move_col < N and 0 <= move_row < N):
+                    errors += 1
                     continue
 
                 outcome: Optional[float] = None
@@ -147,11 +147,22 @@ class PolicyDataset(Dataset):
 
                 board_np = np.array(board_flat, dtype=np.int8).reshape(N, N)
 
-                # Handle encoding variants
+                # Verify the position is empty
+                if board_np[move_row, move_col] != 0:
+                    # Try swapping as fallback
+                    if board_np[move_col, move_row] == 0:
+                        move_row, move_col = move_col, move_row
+                        swapped_coords += 1
+                        if swapped_coords <= 5:
+                            print(f"[WARN] Row {row_idx}: Had to swap coordinates")
+                    else:
+                        errors += 1
+                        continue
+
+                # Handle encoding
                 b_min, b_max = int(board_np.min()), int(board_np.max())
 
                 if b_min >= 0 and b_max <= 2:
-                    # Absolute encoding: {0,1,2}
                     if cp_raw not in (1, 2):
                         continue
                     current_id = cp_raw
@@ -159,7 +170,6 @@ class PolicyDataset(Dataset):
                     current_plane = (board_np == current_id).astype(np.float32)
                     opponent_plane = (board_np == opp_id).astype(np.float32)
                 elif b_min >= -1 and b_max <= 1:
-                    # Signed encoding: {-1,0,+1}
                     if cp_raw in (-1, 1):
                         cp_sign = cp_raw
                     else:
@@ -174,11 +184,16 @@ class PolicyDataset(Dataset):
                 out.append(
                     {
                         "board_2ch": board_2ch,
-                        "move_col": move_col,  # x (column)
-                        "move_row": move_row,  # y (row)
+                        "move_col": move_col,
+                        "move_row": move_row,
                         "value": outcome,
                     }
                 )
+
+        if errors > 0:
+            print(f"[DATASET] Skipped {errors} invalid samples")
+        if swapped_coords > 0:
+            print(f"[DATASET] Had to swap coordinates in {swapped_coords} samples")
 
         return out
 
@@ -200,9 +215,7 @@ class PolicyDataset(Dataset):
         board_2ch = np.ascontiguousarray(board_2ch, dtype=np.float32)
         x_tensor = torch.from_numpy(board_2ch).float()
 
-        # FIXED: Standard row-major flattening
-        # In CSV: row[226]=col(x), row[227]=row(y)
-        # Standard flattening: flat = row * N + col = y * N + x
+        # Standard row-major flattening: row * N + col
         policy_index = y * N + x
         y_policy = torch.tensor(policy_index, dtype=torch.long)
 
