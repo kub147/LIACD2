@@ -24,7 +24,7 @@ class Player:
         elif "pente" in self.rules:
             self.board_class = PenteBoard
             # Tutaj wpisz nazwę modelu Pente, jak koledzy go zrobią:
-            model_filename = "pente_model.pth"
+            model_filename = "pente_TRULT_FINAL.pth"
         else:
             # Fallback to Gomoku settings
             self.board_class = GBoard
