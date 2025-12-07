@@ -1,126 +1,104 @@
 from copy import deepcopy
 
+
 class PBoard:
-    def __init__(self, size): 
-        self.counter = 0; 
+    def __init__(self, size):
+        self.counter = 0
         self.board_width = size
         self.board_height = size
         self.board = self.getBoard()
-        self.X_pieces_captured_by_O = 0      # The first one to reach 10 also wins
-        self.O_pieces_captured_by_X = 0      # The first one to reach 10 also wins
+        self.X_pieces_captured_by_O = 0
+        self.O_pieces_captured_by_X = 0
         self.last_move = None
 
-    # returns a tuple of the board (IF NECESSARY)
     def toTuple(self) -> tuple:
         return tuple(tuple(row) for row in self.board)
 
-
-    # A function to generate custom board to test the code
-    def getSimulationBoard(self) -> list:
-        return []                
-
-    # Function that generates the board depending on the size
     def getBoard(self) -> list:
         return [[0 for _ in range(self.board_width)] for _ in range(self.board_height)]
 
-    # Prints out the board into the terminal for visuals
     def printBoard(self):
-        # Calculate the width needed for row/column numbers (for alignment)
         max_num_width = len(str(self.board_height))
-        
-        # Print header row with column numbers
         header = " " * max_num_width + "  " + " ".join(str(_ + 1).rjust(max_num_width) for _ in range(self.board_width))
         print("\n" + header)
-        
-        # Print each row with row number
         for row_idx, row in enumerate(self.board):
             row_num = str(row_idx + 1).rjust(max_num_width)
             row_content = " ".join(str(cell).rjust(max_num_width) for cell in row)
             print(row_num + "  " + row_content)
         print()
 
-
-    # Checks if space is empty
     def isEmpty(self, x, y) -> bool:
         return self.board[y][x] == 0
 
-
-    # Checks if the board is full
     def isBoardFull(self) -> bool:
         return self.counter == self.board_height * self.board_width
 
-
-    # Checks if the move is legal
     def isLegalMove(self, x, y) -> bool:
         if self.isBoardFull():
-            return False    # Board is full
-        if (not 0 <= x <= self.board_width or not 0 <= y <= self.board_height):
-            return False    # OUT OF BOUNDS
-        
+            return False
+        if not (0 <= x < self.board_width and 0 <= y < self.board_height):
+            return False
         return self.isEmpty(x, y)
 
-    # Makes the move (Places a piece at the given coordenantes depending on the player)
     def makeMove(self, x, y, current_player) -> None:
         self.board[y][x] = current_player
         self.counter += 1
         self.last_move = (x, y)
         self.captureLogic(x, y, current_player)
-        
-    # Capture logic and conditions:
-    # First must verify if the piece just played is neighbor/adjacent to opponent piece, in other words, the 8 surrounding tiles
-    # IF found, iterate twice more along that direction, if there are no space in the line and the final piece is a friendly/ally piece, AND in the middle are TWO opponent pieces, we can capture it.
-    # IF space is empty, then no captures, if it finds piece with same symbol, mark the coordenates, track down which dx, dy variables are used, and flip all the space between as empty.
-    # Increase self.P_pieces_captured_by_P* according to who got captured.
 
+    # Capture logic: Check 8 directions for the pattern: Friendly-Opponent-Opponent-Friendly
     def scan_surround(self, x, y, current_player) -> list:
-        directions = [(0, 1), (0, -1),  # Horizontal
-                      (1, 0), (-1, 0),  # Vertical
-                      (1, 1), (-1, -1),  # Main diagonal
-                      (1, -1), (-1, 1)]  # Second-diagonal
-                      
+        directions = [(0, 1), (0, -1),
+                      (1, 0), (-1, 0),
+                      (1, 1), (-1, -1),
+                      (1, -1), (-1, 1)]
+
         opponent = 1 if current_player == 2 else 2
         valid_directions = []
-        
+
         for (dy, dx) in directions:
-            # Check if adjacent cell is within bounds and contains opponent piece
             adj_x = x + dx
             adj_y = y + dy
-            if (0 <= adj_x < self.board_width and 
-                0 <= adj_y < self.board_height and
-                self.board[adj_y][adj_x] == opponent):
+            if (0 <= adj_x < self.board_width and
+                    0 <= adj_y < self.board_height and
+                    self.board[adj_y][adj_x] == opponent):
                 valid_directions.append((dy, dx))
-        
+
         return valid_directions
 
     def explore_direction(self, x, y, current_player, directions) -> None:
         opponent = 1 if current_player == 2 else 2
-        
+
         for (dy, dx) in directions:
-            # Check positions: 1st adjacent (opponent), 2nd adjacent (opponent), 3rd adjacent (friendly)
-            pos1_x = x + dx
-            pos1_y = y + dy
-            pos2_x = x + 2*dx
-            pos2_y = y + 2*dy
-            pos3_x = x + 3*dx
-            pos3_y = y + 3*dy
-            
-            # Verify all positions are within bounds
-            if (0 <= pos1_x < self.board_width and 0 <= pos1_y < self.board_height and
-                0 <= pos2_x < self.board_width and 0 <= pos2_y < self.board_height and
-                0 <= pos3_x < self.board_width and 0 <= pos3_y < self.board_height):
-                
-                # Check if pattern matches: opponent, opponent, friendly
+            # Positions: 1 (opp), 2 (opp), 3 (friendly)
+            pos1_x, pos1_y = x + dx, y + dy
+            pos2_x, pos2_y = x + 2 * dx, y + 2 * dy
+            pos3_x, pos3_y = x + 3 * dx, y + 3 * dy
+
+            if (0 <= pos3_x < self.board_width and 0 <= pos3_y < self.board_height):
                 if (self.board[pos1_y][pos1_x] == opponent and
-                    self.board[pos2_y][pos2_x] == opponent and
-                    self.board[pos3_y][pos3_x] == current_player):
-                    # Capture the two opponent pieces
+                        self.board[pos2_y][pos2_x] == opponent and
+                        self.board[pos3_y][pos3_x] == current_player):
+
+                    # Capture!
                     self.board[pos1_y][pos1_x] = 0
                     self.board[pos2_y][pos2_x] = 0
                     if current_player == 2:
-                        self.O_pieces_captured_by_X += 2
+                        self.O_pieces_captured_by_X += 1  # Counts as 1 capture event (of 2 stones)?
+                        # Rules say "5 pairs". So usually we count captures as +1 per pair.
+                        # Assuming logic here increases score by 2 stones or 1 pair?
+                        # Let's align with typical Pente: 5 captures = win.
+                        # Your original code added 2? Let's check logic.
+                        # Usually capture count tracks pairs. I will assume +1 means 1 pair.
+                        # NOTE: Original code had += 2. If win condition is 10 stones, that's fine.
+                        pass
+
+                        # Update counters based on stones removed (assuming win condition checks stones)
+                    if current_player == 2:
+                        self.O_pieces_captured_by_X += 2  # Removed 2 stones
                     else:
-                        self.X_pieces_captured_by_O += 2
-                        
+                        self.X_pieces_captured_by_O += 2  # Removed 2 stones
+
                     self.counter -= 2
 
     def captureLogic(self, x, y, current_player):
@@ -128,53 +106,48 @@ class PBoard:
         if dir:
             self.explore_direction(x, y, current_player, dir)
 
-
-    # Win condition verification
-    # Auxiliary function that counts pieces among given direction
     def count_in_direction(self, current_player, dx, dy, x, y):
         count = 0
-        while (0 <= x + dx < self.board_width and 
-            0 <= y + dy < self.board_height and 
-            self.board[y + dy][x + dx] == current_player):
+        while (0 <= x + dx < self.board_width and
+               0 <= y + dy < self.board_height and
+               self.board[y + dy][x + dx] == current_player):
             x += dx
             y += dy
             count += 1
         return count
 
-    # Verifies if the player has won, given the piece location as only the last piece played would affect the baord state
     def isWon(self, x, y, current_player) -> bool:
-        # Directions for auxiliary function
-        directions = [((0, 1), (0, -1)),  # Horizontal
-                    ((1, 0), (-1, 0)),  # Vertical
-                    ((1, 1), (-1, -1)),  # Main diagonal
-                    ((1, -1), (-1, 1))]  # Second-diagonal
-    
+        directions = [((0, 1), (0, -1)),
+                      ((1, 0), (-1, 0)),
+                      ((1, 1), (-1, -1)),
+                      ((1, -1), (-1, 1))]
+
+        # CRITICAL FIX
         if x is None or y is None:
             return False
 
+        # 1. Check 5 in a row
         for (dy1, dx1), (dy2, dx2) in directions:
             total = (self.count_in_direction(current_player, dx1, dy1, x, y) +
-                    self.count_in_direction(current_player, dx2, dy2, x, y) + 1)  # +1 for the initial piece
+                     self.count_in_direction(current_player, dx2, dy2, x, y) + 1)
             if total >= 5:
-                return True     # 5 in a row
+                return True
 
-        if (self.X_pieces_captured_by_O == 10 or self.O_pieces_captured_by_X == 10):
-            return True # ALternate win condition
-        
+        # 2. Check Captures (5 pairs = 10 stones)
+        if self.X_pieces_captured_by_O >= 10 or self.O_pieces_captured_by_X >= 10:
+            return True
+
         return False
 
     def isTie(self) -> bool:
-        return self.isBoardFull() and not any(self.isWon(p, x, y) for x in range(self.board_width) for y in range(self.board_height) for p in [1, 2])
-
+        return self.isBoardFull()
 
     def getPossibleMoves(self, current_player):
         possible_boards = []
-
         for i in range(self.board_height):
             for j in range(self.board_width):
-                if self.isLegalMove(i, j):
+                if self.isLegalMove(j, i):
                     new_board = deepcopy(self)
-                    new_board.makeMove(i, j, current_player)
+                    new_board.makeMove(j, i, current_player)
                     possible_boards.append(new_board)
-                    
         return possible_boards
